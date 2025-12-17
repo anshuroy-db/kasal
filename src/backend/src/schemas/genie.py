@@ -27,13 +27,16 @@ class GenieQueryStatus(str, Enum):
 
 class GenieSpace(BaseModel):
     """Schema for a Genie space."""
-    id: str = Field(..., description="Unique identifier for the space")
-    name: str = Field(..., description="Name of the space")
+    id: str = Field(..., description="Unique identifier for the space", alias="space_id")
+    title: Optional[str] = Field(None, description="Title of the space")
     description: Optional[str] = Field(None, description="Description of the space")
+    warehouse_id: Optional[str] = Field(None, description="Warehouse ID associated with the space")
+    serialized_space: Optional[str] = Field(None, description="Serialized space configuration in JSON string form")
+    # Legacy fields for backward compatibility
+    name: Optional[str] = Field(None, description="Name of the space")
     type: Optional[str] = Field(None, description="Type of the space")
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
-    # Additional fields from API
     enabled: Optional[bool] = Field(True, description="Whether the space is enabled")
     owner: Optional[str] = Field(None, description="Owner of the space")
     workspace_id: Optional[str] = Field(None, description="Workspace ID")
@@ -42,6 +45,7 @@ class GenieSpace(BaseModel):
         json_encoders = {
             datetime: lambda v: v.isoformat() if v else None
         }
+        populate_by_name = True
 
 
 class GenieSpacesRequest(BaseModel):
@@ -199,3 +203,49 @@ class GenieExecutionResponse(BaseModel):
     
     class Config:
         use_enum_values = True
+
+
+class GenieCreateSpaceRequest(BaseModel):
+    """Request to create a new Genie space."""
+    title: str = Field(..., description="Title of the new space")
+    warehouse_id: str = Field(..., description="Warehouse ID to associate with the space")
+    serialized_space: str = Field(..., description="Serialized space configuration in JSON string form")
+    description: Optional[str] = Field(None, description="Optional description of the space")
+    parent_path: Optional[str] = Field(None, description="Optional parent folder path where the space will be registered")
+
+
+class GenieCreateSpaceResponse(BaseModel):
+    """Response from creating a Genie space."""
+    space_id: str = Field(..., description="Unique identifier for the newly created space")
+    title: str = Field(..., description="Title of the space")
+    description: Optional[str] = Field(None, description="Description of the space")
+    warehouse_id: str = Field(..., description="Warehouse ID associated with the space")
+    serialized_space: Optional[str] = Field(None, description="Serialized space configuration")
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+
+
+class GenieUpdateSpaceRequest(BaseModel):
+    """Request to update an existing Genie space."""
+    space_id: str = Field(..., description="Space ID to update")
+    title: Optional[str] = Field(None, description="Updated title of the space")
+    warehouse_id: Optional[str] = Field(None, description="Updated warehouse ID")
+    serialized_space: Optional[str] = Field(None, description="Updated serialized space configuration in JSON string form (full replacement)")
+    description: Optional[str] = Field(None, description="Updated description of the space")
+
+
+class GenieUpdateSpaceResponse(BaseModel):
+    """Response from updating a Genie space."""
+    space_id: str = Field(..., description="Unique identifier for the updated space")
+    title: str = Field(..., description="Title of the space")
+    description: Optional[str] = Field(None, description="Description of the space")
+    warehouse_id: str = Field(..., description="Warehouse ID associated with the space")
+    serialized_space: Optional[str] = Field(None, description="Serialized space configuration")
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }

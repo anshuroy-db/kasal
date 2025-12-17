@@ -23,7 +23,9 @@ from src.schemas.genie import (
     GenieExecutionRequest,
     GenieExecutionResponse,
     GenieAuthConfig,
-    GenieMessageStatus
+    GenieMessageStatus,
+    GenieCreateSpaceResponse,
+    GenieUpdateSpaceResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -365,3 +367,93 @@ class GenieService:
         except Exception as e:
             logger.error(f"Error validating space access: {e}")
             return False
+    
+    async def create_space(
+        self,
+        title: str,
+        warehouse_id: str,
+        serialized_space: str,
+        description: Optional[str] = None,
+        parent_path: Optional[str] = None
+    ) -> Optional[GenieCreateSpaceResponse]:
+        """
+        Create a new Genie space.
+        
+        Args:
+            title: Title of the new space
+            warehouse_id: Warehouse ID to associate with the space
+            serialized_space: Serialized space configuration in JSON string form
+            description: Optional description of the space
+            parent_path: Optional parent folder path where the space will be registered
+            
+        Returns:
+            GenieCreateSpaceResponse or None if failed
+        """
+        try:
+            logger.info(f"Creating Genie space: {title} with warehouse {warehouse_id}")
+            
+            response = await self.repository.create_space(
+                title=title,
+                warehouse_id=warehouse_id,
+                serialized_space=serialized_space,
+                description=description,
+                parent_path=parent_path
+            )
+            
+            if response:
+                logger.info(f"Space created successfully: {response.space_id}")
+            else:
+                logger.error("Failed to create space")
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error creating space: {e}")
+            return None
+    
+    async def update_space(
+        self,
+        space_id: str,
+        title: Optional[str] = None,
+        warehouse_id: Optional[str] = None,
+        serialized_space: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> Optional[GenieUpdateSpaceResponse]:
+        """
+        Update an existing Genie space.
+        
+        Args:
+            space_id: Space ID to update
+            title: Optional updated title
+            warehouse_id: Optional updated warehouse ID
+            serialized_space: Optional updated serialized space configuration (full replacement)
+            description: Optional updated description
+            
+        Returns:
+            GenieUpdateSpaceResponse or None if failed
+        """
+        try:
+            if not space_id:
+                logger.error("space_id is required to update a space")
+                return None
+            
+            logger.info(f"Updating Genie space: {space_id}")
+            
+            response = await self.repository.update_space(
+                space_id=space_id,
+                title=title,
+                warehouse_id=warehouse_id,
+                serialized_space=serialized_space,
+                description=description
+            )
+            
+            if response:
+                logger.info(f"Space updated successfully: {space_id}")
+            else:
+                logger.error(f"Failed to update space: {space_id}")
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error updating space: {e}")
+            return None

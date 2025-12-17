@@ -18,7 +18,11 @@ from src.schemas.genie import (
     GenieSendMessageResponse,
     GenieExecutionRequest,
     GenieExecutionResponse,
-    GenieAuthConfig
+    GenieAuthConfig,
+    GenieCreateSpaceRequest,
+    GenieCreateSpaceResponse,
+    GenieUpdateSpaceRequest,
+    GenieUpdateSpaceResponse
 )
 from src.utils.databricks_auth import extract_user_token_from_request
 from src.utils.user_context import UserContext
@@ -263,3 +267,122 @@ async def send_genie_message(
     except Exception as e:
         logger.error(f"Error sending message: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
+
+
+@router.post("/spaces", response_model=GenieCreateSpaceResponse)
+async def create_genie_space(
+    request: Request,
+    create_request: GenieCreateSpaceRequest,
+    group_context: GroupContextDep = None
+) -> GenieCreateSpaceResponse:
+    """
+    Create a new Genie space.
+
+    Args:
+        request: FastAPI request object
+        create_request: Create space request with title, warehouse_id, and serialized_space
+        group_context: Group context from dependency injection
+
+    Returns:
+        GenieCreateSpaceResponse with the newly created space details
+    """
+    try:
+        # Set group context for this request so get_auth_context() can access it
+        if group_context:
+            UserContext.set_group_context(group_context)
+
+        # Extract user token for OBO authentication if available
+        user_token = extract_user_token_from_request(request)
+
+        # Create auth config with user token for OBO
+        auth_config = GenieAuthConfig(
+            use_obo=True,
+            user_token=user_token
+        )
+
+        # Create service with auth config
+        service = GenieService(auth_config)
+        
+        # Create space through service layer
+        space_response = await service.create_space(
+            title=create_request.title,
+            warehouse_id=create_request.warehouse_id,
+            serialized_space=create_request.serialized_space,
+            description=create_request.description,
+            parent_path=create_request.parent_path
+        )
+        
+        if not space_response:
+            raise HTTPException(status_code=500, detail="Failed to create Genie space")
+        
+        return space_response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating Genie space: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create Genie space: {str(e)}")
+
+
+@router.patch("/spaces/{space_id}", response_model=GenieUpdateSpaceResponse)
+async def update_genie_space(
+    space_id: str,
+    request: Request,
+    update_request: GenieUpdateSpaceRequest,
+    group_context: GroupContextDep = None
+) -> GenieUpdateSpaceResponse:
+    """
+    Update an existing Genie space.
+
+    Args:
+        space_id: The ID of the space to update
+        request: FastAPI request object
+        update_request: Update space request with optional fields to update
+        group_context: Group context from dependency injection
+
+    Returns:
+        GenieUpdateSpaceResponse with the updated space details
+    """
+    try:
+        # Validate that space_id in path matches the request
+        if update_request.space_id and update_request.space_id != space_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Space ID in path does not match the request body"
+            )
+        
+        # Set group context for this request so get_auth_context() can access it
+        if group_context:
+            UserContext.set_group_context(group_context)
+
+        # Extract user token for OBO authentication if available
+        user_token = extract_user_token_from_request(request)
+
+        # Create auth config with user token for OBO
+        auth_config = GenieAuthConfig(
+            use_obo=True,
+            user_token=user_token
+        )
+
+        # Create service with auth config
+        service = GenieService(auth_config)
+        
+        # Update space through service layer
+        space_response = await service.update_space(
+            space_id=space_id,
+            title=update_request.title,
+            warehouse_id=update_request.warehouse_id,
+            serialized_space=update_request.serialized_space,
+            description=update_request.description
+        )
+        
+        if not space_response:
+            raise HTTPException(status_code=500, detail="Failed to update Genie space")
+        
+        return space_response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating Genie space: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update Genie space: {str(e)}")

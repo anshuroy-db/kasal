@@ -34,7 +34,9 @@ from src.schemas.genie import (
     GenieGetQueryResultRequest,
     GenieExecutionRequest,
     GenieExecutionResponse,
-    GenieAuthConfig
+    GenieAuthConfig,
+    GenieCreateSpaceResponse,
+    GenieUpdateSpaceResponse
 )
 from src.utils.databricks_auth import get_auth_context
 
@@ -697,6 +699,155 @@ class GenieRepository:
                 status=GenieQueryStatus.FAILED,
                 error=str(e)
             )
+    
+    async def create_space(
+        self,
+        title: str,
+        warehouse_id: str,
+        serialized_space: str,
+        description: Optional[str] = None,
+        parent_path: Optional[str] = None
+    ) -> Optional['GenieCreateSpaceResponse']:
+        """
+        Create a new Genie space.
+        
+        Args:
+            title: Title of the new space
+            warehouse_id: Warehouse ID to associate with the space
+            serialized_space: Serialized space configuration in JSON string form
+            description: Optional description of the space
+            parent_path: Optional parent folder path where the space will be registered
+            
+        Returns:
+            GenieCreateSpaceResponse or None if failed
+        """
+        try:
+            headers, error = await self._get_auth_headers()
+            if error:
+                logger.error(f"Auth error: {error}")
+                return None
+            
+            url = await self._make_url("/api/2.0/genie/spaces")
+            
+            # Build request body
+            payload = {
+                "title": title,
+                "warehouse_id": warehouse_id,
+                "serialized_space": serialized_space
+            }
+            
+            if description:
+                payload["description"] = description
+            
+            if parent_path:
+                payload["parent_path"] = parent_path
+            
+            logger.info(f"Creating Genie space: {title}")
+            
+            async with self._session.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=30
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    logger.info(f"Space created successfully: {data.get('space_id')}")
+                    
+                    # Import here to avoid circular imports
+                    from src.schemas.genie import GenieCreateSpaceResponse
+                    return GenieCreateSpaceResponse(**data)
+                else:
+                    error_msg = await response.text()
+                    logger.error(f"Failed to create space: {response.status} - {error_msg}")
+                    return None
+                    
+        except asyncio.TimeoutError:
+            logger.error("Timeout creating Genie space")
+            return None
+        except Exception as e:
+            logger.error(f"Error creating Genie space: {e}")
+            return None
+    
+    async def update_space(
+        self,
+        space_id: str,
+        title: Optional[str] = None,
+        warehouse_id: Optional[str] = None,
+        serialized_space: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> Optional['GenieUpdateSpaceResponse']:
+        """
+        Update an existing Genie space.
+        
+        Args:
+            space_id: Space ID to update
+            title: Optional updated title
+            warehouse_id: Optional updated warehouse ID
+            serialized_space: Optional updated serialized space configuration (full replacement)
+            description: Optional updated description
+            
+        Returns:
+            GenieUpdateSpaceResponse or None if failed
+        """
+        try:
+            if not space_id:
+                logger.error("space_id is required for update_space")
+                return None
+            
+            headers, error = await self._get_auth_headers()
+            if error:
+                logger.error(f"Auth error: {error}")
+                return None
+            
+            url = await self._make_url(f"/api/2.0/genie/spaces/{space_id}")
+            
+            # Build request body with optional fields
+            payload = {}
+            
+            if title is not None:
+                payload["title"] = title
+            
+            if warehouse_id is not None:
+                payload["warehouse_id"] = warehouse_id
+            
+            if serialized_space is not None:
+                payload["serialized_space"] = serialized_space
+            
+            if description is not None:
+                payload["description"] = description
+            
+            # Ensure we have at least one field to update
+            if not payload:
+                logger.warning(f"No fields to update for space {space_id}")
+                return None
+            
+            logger.info(f"Updating Genie space: {space_id} with {len(payload)} fields")
+            
+            async with self._session.patch(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=30
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    logger.info(f"Space updated successfully: {space_id}")
+                    
+                    # Import here to avoid circular imports
+                    from src.schemas.genie import GenieUpdateSpaceResponse
+                    return GenieUpdateSpaceResponse(**data)
+                else:
+                    error_msg = await response.text()
+                    logger.error(f"Failed to update space: {response.status} - {error_msg}")
+                    return None
+                    
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout updating Genie space: {space_id}")
+            return None
+        except Exception as e:
+            logger.error(f"Error updating Genie space: {e}")
+            return None
     
     def _extract_response_text(self, query_result: GenieQueryResult) -> str:
         """
